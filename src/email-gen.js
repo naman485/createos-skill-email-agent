@@ -37,7 +37,7 @@ async function generateEmail({ email, name, note, domain }) {
 Write the personalized outreach email now.`;
 
   const response = await client.chat.completions.create({
-    model: 'anthropic/claude-sonnet-4-5',
+    model: 'anthropic/claude-sonnet-4-6',
     max_tokens: 1024,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
