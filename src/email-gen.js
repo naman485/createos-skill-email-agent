@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const { BRAND_CONTEXT } = require('./brand-context');
 
 const SYSTEM_PROMPT = `${BRAND_CONTEXT}
@@ -23,7 +23,10 @@ Respond with valid JSON only, no markdown wrapper:
 {"subject": "...", "body": "..."}`;
 
 async function generateEmail({ email, name, note, domain }) {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api/v1',
+  });
 
   const userMessage = `Recipient details:
 - Email: ${email}
@@ -33,14 +36,16 @@ async function generateEmail({ email, name, note, domain }) {
 
 Write the personalized outreach email now.`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+  const response = await client.chat.completions.create({
+    model: 'anthropic/claude-sonnet-4-5',
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ],
   });
 
-  const raw = response.content[0].text.trim();
+  const raw = response.choices[0].message.content.trim();
 
   let parsed;
   try {
