@@ -1,43 +1,26 @@
-const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
 
-function buildRawMessage(from, to, subject, body) {
-  const messageParts = [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body,
-  ];
-  const message = messageParts.join('\n');
-  return Buffer.from(message)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+function createTransport() {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.GMAIL_FROM,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
 }
 
 async function sendEmail(to, subject, body) {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET
-  );
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+  const transporter = createTransport();
+  const info = await transporter.sendMail({
+    from: process.env.GMAIL_FROM,
+    to,
+    subject,
+    text: body,
   });
-
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-  const from = process.env.GMAIL_FROM;
-
-  const raw = buildRawMessage(from, to, subject, body);
-
-  const response = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw },
-  });
-
-  return response.data.id;
+  return info.messageId;
 }
 
 module.exports = { sendEmail };
