@@ -9,20 +9,17 @@ const { sendEmail } = require('./gmail');
 const app = express();
 app.use(express.json());
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN || 'placeholder');
+const token = process.env.TELEGRAM_BOT_TOKEN;
+const polling = !!token;
+const bot = new TelegramBot(token || 'placeholder', { polling });
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-app.post('/webhook', async (req, res) => {
-  res.sendStatus(200);
-
-  const message = req.body?.message;
-  if (!message) return;
-
-  const chatId = String(message.chat?.id);
-  const text = message.text;
+async function handleMessage(msg) {
+  const chatId = String(msg.chat?.id);
+  const text = msg.text;
 
   if (chatId !== process.env.TELEGRAM_CHAT_ID) return;
 
@@ -53,18 +50,19 @@ app.post('/webhook', async (req, res) => {
     chatId,
     `✓ Email sent to ${parsed.name} (${parsed.email})\n\nSubject: ${generated.subject}\nPreview: ${preview}`
   );
-});
+}
+
+if (polling) {
+  bot.on('message', handleMessage);
+}
 
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
-  app.listen(PORT, async () => {
+  app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    if (process.env.WEBHOOK_URL) {
-      await bot.setWebHook(`${process.env.WEBHOOK_URL}/webhook`);
-      console.log(`Telegram webhook registered at ${process.env.WEBHOOK_URL}/webhook`);
-    }
+    console.log(`Telegram polling: ${polling ? 'active' : 'disabled (no token)'}`);
   });
 }
 
-module.exports = { app };
+module.exports = { app, handleMessage, bot };
