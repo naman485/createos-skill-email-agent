@@ -17,37 +17,19 @@ Rules:
 - Apply all voice rules above: short sentences, no hype words, no em-dashes, numbers where relevant
 - End with exactly ONE specific question to gather product feedback — make it easy to answer
 - Do not include a signature block — Naman will sign manually
-- Do not include any links or CTAs
+- Only include links if the note explicitly asks for them. When including links, use ONLY the Canonical URLs listed above — never invent or guess URLs. If the note asks for a link not in the canonical list, omit it.
 
 Respond with valid JSON only, no markdown wrapper:
 {"subject": "...", "body": "..."}`;
 
-async function generateEmail({ email, name, note, domain }) {
-  const client = new OpenAI({
+function buildClient() {
+  return new OpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
     baseURL: 'https://openrouter.ai/api/v1',
   });
+}
 
-  const userMessage = `Recipient details:
-- Email: ${email}
-- Name: ${name}
-- Note: ${note}
-- Email domain: ${domain}
-
-Write the personalized outreach email now.`;
-
-  const response = await client.chat.completions.create({
-    model: 'anthropic/claude-sonnet-4-6',
-    max_tokens: 1024,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
-  });
-
-  const raw = response.choices[0].message.content.trim();
-
+function extractJson(raw) {
   let jsonText = raw;
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (fenceMatch) {
@@ -76,4 +58,54 @@ Write the personalized outreach email now.`;
   return { subject: parsed.subject, body: parsed.body };
 }
 
-module.exports = { generateEmail };
+async function callModel(messages) {
+  const response = await buildClient().chat.completions.create({
+    model: 'anthropic/claude-sonnet-4-6',
+    max_tokens: 1024,
+    response_format: { type: 'json_object' },
+    messages,
+  });
+  return response.choices[0].message.content.trim();
+}
+
+async function generateEmail({ email, name, note, domain }) {
+  const userMessage = `Recipient details:
+- Email: ${email}
+- Name: ${name}
+- Note: ${note}
+- Email domain: ${domain}
+
+Write the personalized outreach email now.`;
+
+  const raw = await callModel([
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: userMessage },
+  ]);
+  return extractJson(raw);
+}
+
+async function reviseEmail({ email, name, note, domain, currentSubject, currentBody, feedback }) {
+  const userMessage = `Recipient details:
+- Email: ${email}
+- Name: ${name}
+- Note: ${note}
+- Email domain: ${domain}
+
+Current draft:
+Subject: ${currentSubject}
+
+${currentBody}
+
+Operator feedback to apply:
+${feedback}
+
+Revise the draft per the feedback. Keep everything that works. Only change what the feedback asks for, plus anything that becomes inconsistent because of those changes. Return the full revised email as JSON.`;
+
+  const raw = await callModel([
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: userMessage },
+  ]);
+  return extractJson(raw);
+}
+
+module.exports = { generateEmail, reviseEmail };
