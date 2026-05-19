@@ -21,6 +21,8 @@ async function handleMessage(msg) {
   const chatId = String(msg.chat?.id);
   const text = msg.text;
 
+  console.log(`[telegram] incoming chat_id=${chatId} expected=${process.env.TELEGRAM_CHAT_ID} text=${JSON.stringify(text)}`);
+
   if (chatId !== process.env.TELEGRAM_CHAT_ID) return;
 
   const parsed = parseMessage(text);
