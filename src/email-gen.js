@@ -39,6 +39,7 @@ Write the personalized outreach email now.`;
   const response = await client.chat.completions.create({
     model: 'anthropic/claude-sonnet-4-6',
     max_tokens: 1024,
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userMessage },
@@ -47,14 +48,28 @@ Write the personalized outreach email now.`;
 
   const raw = response.choices[0].message.content.trim();
 
+  let jsonText = raw;
+  const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fenceMatch) {
+    jsonText = fenceMatch[1].trim();
+  } else {
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = raw.slice(firstBrace, lastBrace + 1);
+    }
+  }
+
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(jsonText);
   } catch {
+    console.error('[email-gen] raw response that failed to parse:', raw.slice(0, 500));
     throw new Error('Failed to parse email from Claude');
   }
 
   if (!parsed.subject || !parsed.body) {
+    console.error('[email-gen] parsed but missing fields:', JSON.stringify(parsed).slice(0, 500));
     throw new Error('Failed to parse email from Claude');
   }
 
